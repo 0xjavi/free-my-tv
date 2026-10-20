@@ -1,0 +1,84 @@
+# Compila FreeMyTV.apk en los servidores de GitHub (ya traen el Android SDK).
+# Guardar en tu fork como: .github/workflows/build-apk.yml
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      latitude:
+        description: "Latitud de tu ciudad (ej. Santiago = -33.4489)"
+        default: "-33.4489"
+      longitude:
+        description: "Longitud de tu ciudad (ej. Santiago = -70.6693)"
+        default: "-70.6693"
+      city:
+        description: "Nombre en la tarjeta del clima"
+        default: "Santiago"
+      tmdb_region:
+        description: "Pais, 2 letras (CL, AR, MX, ES, US...)"
+        default: "CL"
+      language:
+        description: "auto, en, es o pt"
+        default: "es"
+      temperature:
+        description: "C, F o auto"
+        default: "C"
+      show_crypto:
+        description: "Mostrar precios de cripto (true/false)"
+        default: "false"
+      currency:
+        description: "Moneda de cripto (USD, EUR, CLP...)"
+        default: "USD"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Asegurar Android SDK (build-tools 34 y platform 34)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Crear config.properties
+        env:
+          LAT: ${{ inputs.latitude }}
+          LON: ${{ inputs.longitude }}
+          CITY: ${{ inputs.city }}
+          REGION: ${{ inputs.tmdb_region }}
+          LANG_: ${{ inputs.language }}
+          TEMP: ${{ inputs.temperature }}
+          CRYPTO: ${{ inputs.show_crypto }}
+          CURRENCY: ${{ inputs.currency }}
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+        run: |
+          {
+            echo "tmdb_key=${TMDB_KEY}"
+            echo "tmdb_region=${REGION}"
+            echo "latitude=${LAT}"
+            echo "longitude=${LON}"
+            echo "city=${CITY}"
+            echo "language=${LANG_}"
+            echo "show_crypto=${CRYPTO}"
+            echo "currency=${CURRENCY}"
+            echo "temperature=${TEMP}"
+            echo "disable_assistant=false"
+          } > config.properties
+
+      - name: Compilar
+        run: ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FreeMyTV-apk
+          path: FreeMyTV.apk
+          if-no-files-found: error
